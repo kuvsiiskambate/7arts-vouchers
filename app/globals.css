@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-montserrat: 'Montserrat', sans-serif;
+  }
+
+  * {
+    @apply border-brand-neonDim/20;
+  }
+
+  body {
+    @apply bg-brand-dark text-white;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Selection styling */
+  ::selection {
+    @apply bg-brand-neon text-brand-dark;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-brand-surface;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-brand-neonDim rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-brand-neon;
+  }
+}
+
+@layer components {
+  /* Glass morphism card */
+  .glass-card {
+    @apply bg-brand-blue/15 backdrop-blur-lg border border-brand-neon/10 rounded-lg;
+  }
+
+  /* Neon glow effect */
+  .neon-glow {
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+  }
+
+  .neon-glow-strong {
+    box-shadow: 0 0 25px rgba(0, 229, 255, 0.5);
+  }
+
+  /* Neon text gradient */
+  .neon-gradient {
+    background: linear-gradient(to right, #00E5FF, #2563EB);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Brutal button */
+  .btn-neon {
+    @apply bg-brand-neon hover:bg-brand-neonHover text-brand-dark font-semibold px-6 py-3 rounded-md transition-all duration-200;
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+  }
+
+  .btn-neon:hover {
+    box-shadow: 0 0 25px rgba(0, 229, 255, 0.5);
+    transform: translateY(-2px);
+  }
+
+  .btn-ghost {
+    @apply border border-brand-neon/50 text-brand-neon hover:bg-brand-neon/10 px-6 py-3 rounded-md transition-all duration-200;
+  }
+
+  /* Input fields */
+  .input-neon {
+    @apply bg-brand-surface border border-brand-neonDim/30 rounded-md px-4 py-3 text-white placeholder:text-gray-500;
+    @apply focus:outline-none focus:border-brand-neon focus:ring-1 focus:ring-brand-neon transition-all;
+  }
+
+  /* Container */
+  .container-brutal {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Section divider */
+  .divider-neon {
+    @apply border-t border-brand-neon/10;
+  }
+}
+
+@layer utilities {
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Animation utilities */
+  .animate-glow {
+    animation: glow 3s ease-in-out infinite;
+  }
+
+  @keyframes glow {
+    0%, 100% {
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 25px rgba(0, 229, 255, 0.6);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Typography improvements */
+h1, h2, h3, h4, h5, h6 {
+  @apply font-bold text-balance;
+}
+
+h1 {
+  @apply text-4xl md:text-5xl lg:text-6xl;
+}
+
+h2 {
+  @apply text-3xl md:text-4xl lg:text-5xl;
+}
+
+h3 {
+  @apply text-2xl md:text-3xl;
+}
+
+p {
+  @apply text-base md:text-lg leading-relaxed;
+}
+
+/* Link styles */
+a {
+  @apply transition-colors duration-200;
+}
+
+a:hover {
+  @apply text-brand-neon;
+}

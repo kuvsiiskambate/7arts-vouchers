@@ -1,0 +1,616 @@
+// hub.7arts.bg Database Schema
+// National Cultural Operating System for Bulgaria
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  password      String? // For credentials provider
+  role          UserRole  @default(ARTIST)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  profile       Profile?
+  campaigns     Campaign[]
+  pledges       Pledge[]
+  events        Event[]
+  jobs          Job[]
+  reviews       Review[]
+  givenReviews  Review[]  @relation("ReviewGiver")
+
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  ARTIST
+  VENUE
+  ORGANIZATION
+  SPONSOR
+  BACKER
+  ADMIN
+  MODERATOR
+}
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic info
+  bio             String?  @db.Text
+  location        String?
+  city            String?
+  website         String?
+  phone           String?
+
+  // Social links (JSON object)
+  socialLinks     Json?    // { facebook, instagram, youtube, twitter, tiktok }
+
+  // Artist-specific
+  genres          String[]
+  skills          String[]
+  artistType      String?  // musician, actor, director, visual artist, etc
+
+  // Portfolio (JSON array of media items)
+  portfolio       Json?    // [{ type, url, title, description }]
+
+  // Verification
+  verified        Boolean  @default(false)
+  verifiedAt      DateTime?
+  idVerified      Boolean  @default(false)
+  idDocument      String?  // S3 URL for uploaded ID (encrypted)
+
+  // Reputation
+  reputationScore Float    @default(0)
+  completionRate  Float    @default(100)
+  totalProjects   Int      @default(0)
+  successfulProjects Int   @default(0)
+
+  // Stripe Connect
+  stripeAccountId String?  @unique
+  stripeOnboarded Boolean  @default(false)
+
+  // Settings
+  emailNotifications Boolean @default(true)
+  publicProfile   Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([city])
+  @@index([verified])
+}
+
+// ============================================
+// CAMPAIGNS (FUNDING & CROWDFUNDING)
+// ============================================
+
+model Campaign {
+  id              String         @id @default(cuid())
+  creatorId       String
+  creator         User           @relation(fields: [creatorId], references: [id])
+
+  // Basic info
+  title           String
+  slug            String         @unique
+  description     String         @db.Text
+  shortDescription String?       @db.Text
+  category        CampaignCategory
+  coverImage      String?
+  videoUrl        String?        // YouTube/Vimeo embed
+  mediaGallery    Json?          // Array of images/videos
+
+  // Funding
+  fundingMode     FundingMode
+  goalAmount      Decimal        @db.Decimal(10, 2)
+  raisedAmount    Decimal        @default(0) @db.Decimal(10, 2)
+  currency        String         @default("BGN")
+  platformFee     Decimal        @default(5) @db.Decimal(5, 2) // Percentage
+
+  // Timeline
+  startDate       DateTime       @default(now())
+  endDate         DateTime
+  duration        Int?           // Days (calculated)
+
+  // Status
+  status          CampaignStatus @default(DRAFT)
+  publishedAt     DateTime?
+  fundedAt        DateTime?      // When goal was reached
+  completedAt     DateTime?      // When project was delivered
+
+  // Budget transparency
+  budgetBreakdown Json?          // [{ category, amount, description }]
+
+  // Moderation
+  approved        Boolean        @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+
+  // Metadata
+  views           Int            @default(0)
+  backerCount     Int            @default(0)
+
+  // Relations
+  rewards         Reward[]
+  pledges         Pledge[]
+  updates         CampaignUpdate[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([category])
+  @@index([endDate])
+  @@index([slug])
+}
+
+enum CampaignCategory {
+  THEATER
+  MUSIC
+  FILM
+  VISUAL_ARTS
+  DANCE
+  LITERATURE
+  PHOTOGRAPHY
+  DESIGN
+  CRAFTS
+  OTHER
+}
+
+enum FundingMode {
+  ALL_OR_NOTHING
+  FLEXIBLE
+  PRE_SALE
+  PATRONAGE
+}
+
+enum CampaignStatus {
+  DRAFT
+  UNDER_REVIEW
+  ACTIVE
+  SUCCESSFUL
+  FAILED
+  CANCELED
+  COMPLETED
+}
+
+model Reward {
+  id              String   @id @default(cuid())
+  campaignId      String
+  campaign        Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  title           String
+  description     String   @db.Text
+  price           Decimal  @db.Decimal(10, 2)
+  estimatedDelivery DateTime?
+
+  // Quantity
+  quantityTotal   Int?     // null = unlimited
+  quantityClaimed Int      @default(0)
+  quantityAvailable Int?   // Calculated: quantityTotal - quantityClaimed
+
+  // Delivery
+  shippingRequired Boolean @default(false)
+  digitalDelivery  Boolean @default(false)
+
+  // Display order
+  position        Int      @default(0)
+
+  pledges         Pledge[]
+
+  createdAt       DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([position])
+}
+
+model Pledge {
+  id              String       @id @default(cuid())
+  campaignId      String
+  campaign        Campaign     @relation(fields: [campaignId], references: [id])
+  backerId        String
+  backer          User         @relation(fields: [backerId], references: [id])
+  rewardId        String?
+  reward          Reward?      @relation(fields: [rewardId], references: [id])
+
+  amount          Decimal      @db.Decimal(10, 2)
+  status          PledgeStatus @default(PENDING)
+
+  // Payment (Stripe)
+  stripePaymentIntentId String? @unique
+  stripeFee       Decimal?     @db.Decimal(10, 2)
+  platformFee     Decimal?     @db.Decimal(10, 2)
+  netAmount       Decimal?     @db.Decimal(10, 2)
+
+  // Backer info (for rewards fulfillment)
+  backerName      String?
+  backerEmail     String?
+  shippingAddress Json?        // { line1, line2, city, zip, country }
+
+  // Fulfillment
+  fulfilled       Boolean      @default(false)
+  fulfilledAt     DateTime?
+  trackingNumber  String?
+  trackingCarrier String?      // ECONT, SPEEDY, etc
+
+  // Anonymous pledge
+  anonymous       Boolean      @default(false)
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([campaignId])
+  @@index([backerId])
+  @@index([status])
+}
+
+enum PledgeStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  CANCELED
+  DISPUTED
+}
+
+model CampaignUpdate {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  title      String
+  content    String   @db.Text
+  media      Json?    // Array of images/videos
+
+  // Visibility
+  public     Boolean  @default(true) // false = backers only
+
+  createdAt  DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([createdAt])
+}
+
+// ============================================
+// EVENTS & TICKETING
+// ============================================
+
+model Event {
+  id              String       @id @default(cuid())
+  organizerId     String
+  organizer       User         @relation(fields: [organizerId], references: [id])
+  venueId         String?
+  venue           Venue?       @relation(fields: [venueId], references: [id])
+
+  // Basic info
+  title           String
+  slug            String       @unique
+  description     String       @db.Text
+  category        EventCategory
+  tags            String[]
+  coverImage      String?
+  images          Json?        // Array of image URLs
+
+  // Location
+  locationName    String
+  address         String
+  city            String
+  country         String       @default("Bulgaria")
+  latitude        Float?
+  longitude       Float?
+
+  // Schedule
+  startDate       DateTime
+  endDate         DateTime?
+  timezone        String       @default("Europe/Sofia")
+  recurring       Boolean      @default(false)
+  recurrenceRule  String?      // iCal RRULE format
+
+  // Ticketing
+  ticketingEnabled Boolean     @default(true)
+  capacity        Int?
+  ticketsSold     Int          @default(0)
+  freeEvent       Boolean      @default(false)
+
+  // Status
+  status          EventStatus  @default(DRAFT)
+  publishedAt     DateTime?
+  canceledAt      DateTime?
+  cancelReason    String?
+
+  // Metadata
+  views           Int          @default(0)
+  attendeeCount   Int          @default(0)
+
+  // Relations
+  tickets         Ticket[]
+  reviews         Review[]
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizerId])
+  @@index([venueId])
+  @@index([status])
+  @@index([startDate])
+  @@index([city])
+  @@index([slug])
+}
+
+enum EventCategory {
+  THEATER
+  CONCERT
+  OPERA
+  BALLET
+  EXHIBITION
+  SCREENING
+  WORKSHOP
+  LECTURE
+  FESTIVAL
+  PERFORMANCE
+  OTHER
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  SOLD_OUT
+  CANCELED
+  POSTPONED
+  COMPLETED
+}
+
+model Ticket {
+  id              String       @id @default(cuid())
+  eventId         String
+  event           Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name            String       // e.g., "Early Bird", "VIP", "Student"
+  description     String?      @db.Text
+  price           Decimal      @db.Decimal(10, 2)
+
+  // Quantity
+  quantity        Int
+  sold            Int          @default(0)
+  available       Int          // Calculated: quantity - sold
+
+  // Sales period
+  salesStart      DateTime     @default(now())
+  salesEnd        DateTime?
+
+  // Position for display
+  position        Int          @default(0)
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([eventId])
+  @@index([salesStart, salesEnd])
+}
+
+model Venue {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String?  @db.Text
+  logo            String?
+  coverImage      String?
+
+  // Location
+  address         String
+  city            String
+  country         String   @default("Bulgaria")
+  latitude        Float
+  longitude       Float
+
+  // Venue details
+  capacity        Int?
+  venueType       String?  // theater, concert hall, gallery, club, outdoor, etc
+  amenities       String[] // parking, wheelchair access, bar, coat check, etc
+
+  // Contact
+  website         String?
+  email           String?
+  phone           String?
+  socialLinks     Json?
+
+  // Relations
+  events          Event[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([city])
+  @@index([slug])
+}
+
+// ============================================
+// JOBS & GIGS
+// ============================================
+
+model Job {
+  id              String     @id @default(cuid())
+  posterId        String
+  poster          User       @relation(fields: [posterId], references: [id])
+
+  title           String
+  description     String     @db.Text
+  category        JobCategory
+  type            JobType
+
+  // Budget
+  budgetMin       Decimal?   @db.Decimal(10, 2)
+  budgetMax       Decimal?   @db.Decimal(10, 2)
+  currency        String     @default("BGN")
+  negotiable      Boolean    @default(false)
+
+  // Location
+  location        String
+  city            String?
+  remote          Boolean    @default(false)
+
+  // Timeline
+  startDate       DateTime?
+  endDate         DateTime?
+  duration        String?    // "2 weeks", "3 months", etc
+
+  // Requirements
+  skills          String[]
+  experienceLevel String?    // junior, mid, senior, expert
+
+  // Application
+  applicationUrl  String?    // External application link
+  applicationEmail String?
+
+  // Status
+  status          JobStatus  @default(OPEN)
+  closedAt        DateTime?
+  views           Int        @default(0)
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([posterId])
+  @@index([status])
+  @@index([category])
+  @@index([city])
+}
+
+enum JobCategory {
+  PERFORMANCE
+  ACTING
+  MUSIC
+  DANCE
+  TECHNICAL_CREW
+  SOUND
+  LIGHTING
+  STAGE_MANAGEMENT
+  CREATIVE
+  DIRECTING
+  CHOREOGRAPHY
+  CURATING
+  WRITING
+  ADMINISTRATIVE
+  PRODUCTION
+  MARKETING
+  TEACHING
+  OTHER
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  GIG
+  PROJECT
+  VOLUNTEER
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  FILLED
+}
+
+// ============================================
+// REVIEWS & REPUTATION
+// ============================================
+
+model Review {
+  id          String   @id @default(cuid())
+  reviewerId  String
+  reviewer    User     @relation("ReviewGiver", fields: [reviewerId], references: [id])
+
+  // What's being reviewed
+  eventId     String?
+  event       Event?   @relation(fields: [eventId], references: [id])
+  userId      String?  // For reviewing artists/orgs
+  user        User?    @relation(fields: [userId], references: [id])
+
+  // Review content
+  rating      Int      // 1-5 stars
+  title       String?
+  content     String?  @db.Text
+
+  // Verification
+  verified    Boolean  @default(false) // Did reviewer attend/participate?
+
+  // Moderation
+  flagged     Boolean  @default(false)
+  flagReason  String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([reviewerId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================
+// NEXTAUTH MODELS
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
