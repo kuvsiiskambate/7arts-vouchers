@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import checkoutRoutes from './routes/checkout.js';
 import webhookRoutes from './routes/webhook.js';
+import adminRoutes from './routes/admin.js';
+import voucherRoutes from './routes/voucher.js';
 import { initStorage } from './utils/voucherStorage.js';
 
 // Зарежда environment variables
@@ -28,6 +30,8 @@ app.use(express.json());
 
 // API Routes
 app.use('/api', checkoutRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/vouchers', voucherRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -44,9 +48,22 @@ app.get('/', (req, res) => {
     message: '7Arts Vouchers API',
     version: '1.0.0',
     endpoints: {
-      createCheckout: 'POST /api/create-checkout-session',
-      stripeWebhook: 'POST /api/webhook/stripe',
-      health: 'GET /health'
+      public: {
+        createCheckout: 'POST /api/create-checkout-session',
+        validateVoucher: 'POST /api/vouchers/validate',
+        redeemVoucher: 'POST /api/vouchers/redeem',
+        checkVoucher: 'GET /api/vouchers/check/:code',
+        health: 'GET /health'
+      },
+      admin: {
+        listVouchers: 'GET /api/admin/vouchers (requires auth)',
+        getVoucher: 'GET /api/admin/vouchers/:code (requires auth)',
+        statistics: 'GET /api/admin/stats (requires auth)',
+        search: 'GET /api/admin/search (requires auth)'
+      },
+      webhook: {
+        stripe: 'POST /api/webhook/stripe'
+      }
     }
   });
 });
@@ -79,6 +96,7 @@ async function startServer() {
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 Client URL: ${process.env.CLIENT_URL || 'not configured'}`);
       console.log(`💳 Stripe: ${process.env.STRIPE_SECRET_KEY ? '✅ configured' : '❌ not configured'}`);
+      console.log(`🔐 Admin Auth: ${process.env.ADMIN_USERNAME || process.env.ADMIN_API_KEY ? '✅ configured' : '⚠️  not configured'}`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       console.log('');
     });

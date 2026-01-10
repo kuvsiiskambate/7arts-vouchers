@@ -1,6 +1,14 @@
 # 7Arts Vouchers API 🎁
 
-Production-ready backend API за управление на подаръчни ваучери със Stripe плащания.
+Production-ready backend API за управление на подаръчни ваучери със Stripe плащания и admin panel.
+
+## 📚 Документация
+
+- **[STRIPE_SETUP_GUIDE.md](./STRIPE_SETUP_GUIDE.md)** - Пълно ръководство за Stripe setup (стъпка по стъпка)
+- **[ADMIN_GUIDE.md](./ADMIN_GUIDE.md)** - Admin authentication и управление на ваучери
+- **[FRONTEND_INTEGRATION.md](./FRONTEND_INTEGRATION.md)** - React примери и frontend интеграция
+
+---
 
 ## 🚀 Quick Start
 
@@ -138,6 +146,159 @@ Health check endpoint.
 ### 🔹 GET `/`
 
 API информация и налични endpoints.
+
+---
+
+## 🎫 Voucher Management Endpoints
+
+### 🔹 POST `/api/vouchers/validate`
+
+Проверява дали ваучер код е валиден (без да го използва).
+
+**⚠️ PUBLIC ENDPOINT** - Не изисква authentication
+
+**Request:**
+```json
+{
+  "code": "7ARTS-A5K9-L2M4"
+}
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "voucher": {
+    "code": "7ARTS-A5K9-L2M4",
+    "amount": 150,
+    "currency": "BGN",
+    "status": "active"
+  },
+  "message": "Voucher is valid and ready to use"
+}
+```
+
+### 🔹 POST `/api/vouchers/redeem`
+
+Използва (redeem) ваучер.
+
+**⚠️ PUBLIC ENDPOINT** - Не изисква authentication
+
+**Request:**
+```json
+{
+  "code": "7ARTS-A5K9-L2M4",
+  "customerEmail": "customer@example.com"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Voucher redeemed successfully",
+  "voucher": {
+    "code": "7ARTS-A5K9-L2M4",
+    "amount": 150,
+    "currency": "BGN",
+    "redeemedAt": "2024-01-10T18:00:00.000Z"
+  }
+}
+```
+
+### 🔹 GET `/api/vouchers/check/:code`
+
+Бърза проверка на ваучер (само статус).
+
+**⚠️ PUBLIC ENDPOINT**
+
+**Response:**
+```json
+{
+  "exists": true,
+  "valid": true,
+  "status": "active",
+  "amount": 150,
+  "currency": "BGN"
+}
+```
+
+---
+
+## 🔐 Admin Endpoints
+
+**⚠️ Всички admin endpoints изискват authentication!**
+
+### Authentication Methods
+
+Използвай **един** от двата метода:
+
+**Method 1: API Key (Препоръчан)**
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3001/api/admin/vouchers
+```
+
+**Method 2: Basic Auth**
+```bash
+curl -u username:password http://localhost:3001/api/admin/vouchers
+```
+
+### Setup
+
+Добави в `.env`:
+```env
+# Method 1: API Key
+ADMIN_API_KEY=7arts_admin_your_secret_key
+
+# Method 2: Username/Password
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your_secure_password
+```
+
+📖 **Пълно ръководство:** [ADMIN_GUIDE.md](./ADMIN_GUIDE.md)
+
+### 🔹 GET `/api/admin/vouchers`
+
+Списък с всички ваучери + статистики.
+
+**🔒 Изисква: Authentication**
+
+**Response:**
+```json
+{
+  "vouchers": [...],
+  "stats": {
+    "total": 15,
+    "active": 12,
+    "redeemed": 3,
+    "totalAmount": 2250
+  }
+}
+```
+
+### 🔹 GET `/api/admin/vouchers/:code`
+
+Детайли за конкретен ваучер.
+
+**🔒 Изисква: Authentication**
+
+### 🔹 GET `/api/admin/stats`
+
+Подробна статистика.
+
+**🔒 Изисква: Authentication**
+
+### 🔹 GET `/api/admin/search`
+
+Търсене на ваучери по email, status, type, format, amount.
+
+**🔒 Изисква: Authentication**
+
+**Пример:**
+```bash
+curl -H "X-API-Key: YOUR_KEY" \
+  "http://localhost:3001/api/admin/search?status=active&type=individual"
+```
 
 ---
 
@@ -455,6 +616,11 @@ api/
 | `STRIPE_SECRET_KEY` | Stripe API key | Yes | - |
 | `STRIPE_WEBHOOK_SECRET` | Webhook signing secret | Yes | - |
 | `CLIENT_URL` | Frontend URL | Yes | - |
+| `ADMIN_USERNAME` | Admin username (Basic Auth) | No* | - |
+| `ADMIN_PASSWORD` | Admin password (Basic Auth) | No* | - |
+| `ADMIN_API_KEY` | Admin API key (X-API-Key) | No* | - |
+
+\* Поне един admin authentication метод е препоръчан за production
 
 ---
 
