@@ -1,12 +1,24 @@
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// Lazy initialization на Stripe
+let stripe = null;
+function getStripe() {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY is not configured. Please add it to your .env file.');
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+  return stripe;
+}
 
 /**
  * Създава Stripe Checkout Session за покупка на ваучер
  */
 export async function createCheckoutSession(req, res) {
   try {
+    // Проверка за Stripe configuration
+    const stripe = getStripe();
     const {
       amount,
       currency = 'bgn',

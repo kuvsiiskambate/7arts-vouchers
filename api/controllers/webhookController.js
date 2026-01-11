@@ -2,7 +2,17 @@ import Stripe from 'stripe';
 import { generateVoucherCode, createVoucher } from '../utils/voucherGenerator.js';
 import { addVoucher, findVoucherBySessionId } from '../utils/voucherStorage.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// Lazy initialization на Stripe
+let stripe = null;
+function getStripe() {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY is not configured. Please add it to your .env file.');
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  }
+  return stripe;
+}
 
 /**
  * Обработва Stripe webhook events
@@ -12,6 +22,8 @@ export async function handleStripeWebhook(req, res) {
   let event;
 
   try {
+    const stripe = getStripe();
+
     // Верифицира webhook signature
     event = stripe.webhooks.constructEvent(
       req.body,
